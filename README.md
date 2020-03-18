@@ -11,7 +11,7 @@ Some tools for Conference-Hall.io using the Firestore REST API
 Useful to know if someone rated with too much ❤️ or not enough "5" for example. 
 
 ```
-node index.js -e [EVENT_ID] --user-formats-votes -d -t [A_VERY_LONG_TOKEN]
+node index.js -e [EVENT_ID] --user-formats-votes -t [A_VERY_LONG_TOKEN]
 ```
 
 Outputs:
