@@ -58,7 +58,7 @@ const getUsers = async (organizationId) => {
     return users
 }
 
-const getProposals = async (eventId, pageSize = []) => {
+const getProposals = async (eventId, pageSize) => {
     let response = await  fetchFirestore(`events/${eventId}/proposals/`, pageSize)
 
     let proposals = response.documents.map(doc => doc.fields)
@@ -71,6 +71,17 @@ const getProposals = async (eventId, pageSize = []) => {
     } while (response.nextPageToken)
 
     return proposals
+}
+
+const getSpeakers = async (proposals) => {
+    const speakerIds = proposals.flatMap(prop => Object.keys(prop.speakers))
+    const users = []
+
+    for(const userId of speakerIds) {
+        users.push(await fetchDocument(`users/${userId}`))
+    }
+
+    return users
 }
 
 const hydrateRatingsOnProposals = async (eventId, proposals) => {
@@ -152,6 +163,27 @@ const getVotesByFormatByUser = async (eventId, pageSize) => {
     return calculateVoteByCategoriesByUser(updatedProposals, users, categories)
 }
 
+const exportSpeakers = async (eventId, pageSize, filterStatus) => {
+    const spinner = ora().start("Loading proposals")
+    const proposals = await getProposals(eventId, pageSize)
+
+    let filteredProposal = proposals
+    if(filterStatus) {
+        const filters = filterStatus.split(',')
+        filteredProposal = proposals.filter(prop => filters.includes(prop.state))
+        console.log(` -- ${filteredProposal.length} filtered proposals out of ${proposals.length}`)
+    }
+
+    spinner.text = 'Loading speakers'
+    const speakers = await getSpeakers(filteredProposal)
+
+    console.log(` -- ${speakers.length} speakers retrieved`)
+
+    spinner.succeed("Loading completed!")
+
+    return speakers.map(speaker => speaker.email).join(',')
+}
+
 const writeResult = (fileName, data) => {
     return fs.writeFile(fileName,data)
 }
@@ -168,8 +200,8 @@ const main = async () => {
         process.exit(1)
     }
 
-    if (!program.userFormatsVotes) {
-        console.log("No options given")
+    if (!program.exportUserFormatsVotes && !program.exportSpeakers) {
+        console.log("No export choosed")
         process.exit(1)
     }
 
@@ -182,16 +214,27 @@ const main = async () => {
     const pageSize = program.size
     userIdToken = program.token
 
-    const result = await getVotesByFormatByUser(eventId, pageSize)
+    if(program.exportUserFormatsVotes) {
+        const result = await getVotesByFormatByUser(eventId, pageSize)
+        const spinner = ora("Saving file")
+        const fileName = "votesByFormatByUsers.json"
+        await writeResult(fileName, JSON.stringify(result))
+        spinner.succeed(`File saved to ./${fileName}`)
+    }
 
-    const spinner = ora("Saving file")
-    const fileName = "votesByFormatByUsers.json"
-    await writeResult(fileName, JSON.stringify(result))
-    spinner.succeed(`File saved to ./${fileName}`)
+    if(program.exportSpeakers) {
+        const resultSpeakerEmails = await exportSpeakers(eventId, pageSize, program.filterTalkState)
+        const spinner = ora("Saving file")
+        const fileName = "speakers.csv"
+        await writeResult(fileName, resultSpeakerEmails)
+        spinner.succeed(`File saved to ./${fileName}`)
+    }
 }
 
 program
-    .option('--user-formats-votes', 'get number of votes by user by talk formats')
+    .option('--export-user-formats-votes', 'get number of votes by user by talk formats')
+    .option('--export-speakers', 'export speakers email, in .csv')
+    .option('--filter-talk-state <talkStatus>', 'the talk state to keep like accepted,confirmed,submitted')
     .option('-d, --debug', 'debug mode')
     .option('-s, --size <pageSize>', 'the number of proposal to fetch by page', 50)
     .option('-t, --token <idToken>', 'Your ID Token (find it on conference-hall.io from the request body going to www.googleapis.com')
