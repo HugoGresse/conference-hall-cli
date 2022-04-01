@@ -26,13 +26,13 @@ Outputs:
     "betaAccess": "sssssxxxx",
     "email": "example@gmail.com",
     "formats": [
-      {
+      {U
         "Cloud & Devops": [
           "noopinion (2nUoRfU9qblCBji2OHWx)",
           "3 (3WtnMK7lCEOWPYbOFEeY)",
           "noopinion (4UnOEnXQwc2rM2gIOgjU)",
           "noopinion (6UJUPPZIwvWdsYXyqIzZ)",
-          "3 (6c0Gvj2vjiuaovgUtoqO)",
+          "3 (6c0Gvj2vjiuaovgUtoqO)"
         ]
       },
       {
@@ -41,11 +41,11 @@ Outputs:
           "2 (3ducAoiPCcVqxmv8rXCN)",
           "5 (3g2luwuh2e5to9b2zIF3)",
           "2 (69zborLgYb0HRil9ogoU)",
-          "love (IXdCLw8DYMDL31eIl6S9)",
+          "love (IXdCLw8DYMDL31eIl6S9)"
         ]
       }
     ]
-  },
+  }
 ```
 #### Export speakers
 Export speakers in .csv
@@ -53,3 +53,11 @@ Export speakers in .csv
 ```
 node index.js -e [EVENT_ID] --export-speakers --filter-talk-state confirmed,accepted -t [A_VERY_LONG_TOKEN]
 ```
+#### Aggregate some stats
+
+To be run after the `voteByFormatByUsers.json` has been exported using the cli. 
+See `checkAlluserVoted.js` which include three functions: 
+
+- `checkTalkRatings(proposalId)` which output the rating on the proposal and the average
+- `checkVoteCount("votesByFormatByUsers.json")` which output the number of votes by format for each user and save it to `votesByUserByFormatByType.json`
+- `checkLoveAndFive("votesByFormatByUsers.json")` which output the number of love and five for each user.

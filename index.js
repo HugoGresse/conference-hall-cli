@@ -163,7 +163,7 @@ const getVotesByFormatByUser = async (eventId, pageSize) => {
     return calculateVoteByCategoriesByUser(updatedProposals, users, categories)
 }
 
-const exportSpeakers = async (eventId, pageSize, filterStatus) => {
+const exportSpeakersAndProposals = async (eventId, pageSize, filterStatus) => {
     const spinner = ora().start("Loading proposals")
     const proposals = await getProposals(eventId, pageSize)
 
@@ -180,6 +180,12 @@ const exportSpeakers = async (eventId, pageSize, filterStatus) => {
     console.log(` -- ${speakers.length} speakers retrieved`)
 
     spinner.succeed("Loading completed!")
+
+    return [speakers, filteredProposal]
+}
+
+const exportSpeakersEmails = async (eventId, pageSize, filterStatus) => {
+    const [speakers] = await exportSpeakersAndProposals(eventId, pageSize, filterStatus)
 
     return speakers.map(speaker => speaker.email).join(',')
 }
@@ -200,7 +206,7 @@ const main = async () => {
         process.exit(1)
     }
 
-    if (!program.exportUserFormatsVotes && !program.exportSpeakers) {
+    if (!program.exportUserFormatsVotes && !program.exportSpeakers && !program.exportConfirmedTalksWithSpeakers) {
         console.log("No export choosed")
         process.exit(1)
     }
@@ -223,10 +229,18 @@ const main = async () => {
     }
 
     if(program.exportSpeakers) {
-        const resultSpeakerEmails = await exportSpeakers(eventId, pageSize, program.filterTalkState)
+        const resultSpeakerEmails = await exportSpeakersEmails(eventId, pageSize, program.filterTalkState)
         const spinner = ora("Saving file")
         const fileName = "speakers.csv"
         await writeResult(fileName, resultSpeakerEmails)
+        spinner.succeed(`File saved to ./${fileName}`)
+    }
+
+    if(program.exportConfirmedTalksWithSpeakers) {
+        const [speakers, proposals] = await exportSpeakersAndProposals(eventId, pageSize, "confirmed")
+        const spinner = ora("Saving file")
+        const fileName = "speakersAndProposals.json"
+        await writeResult(fileName, JSON.stringify({speakers, proposals}, 0, 4))
         spinner.succeed(`File saved to ./${fileName}`)
     }
 }
@@ -234,6 +248,7 @@ const main = async () => {
 program
     .option('--export-user-formats-votes', 'get number of votes by user by talk formats')
     .option('--export-speakers', 'export speakers email, in .csv')
+    .option('--export-confirmed-talks-with-speakers', 'export the confirmed talks and their speakers in .json')
     .option('--filter-talk-state <talkStatus>', 'the talk state to keep like accepted,confirmed,submitted')
     .option('-d, --debug', 'debug mode')
     .option('-s, --size <pageSize>', 'the number of proposal to fetch by page', 50)
@@ -242,7 +257,3 @@ program
 
 
 main()
-
-
-// TODO
-// filter talk by submitted

@@ -34,3 +34,4 @@ yarn-error.log*
 /votesByFormatByUsers.json
 /votesByUserByFormatByType.json
 /speakers.csv
+/speakersAndProposals.json
