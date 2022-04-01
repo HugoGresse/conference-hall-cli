@@ -61,5 +61,26 @@ const checkLoveAndFive = async (fileName) => {
     fs.writeFile("votesByUserByFormatByType.json", JSON.stringify(results))
 }
 
-//checkVoteCount("votesByFormatByUsers.json")
-checkLoveAndFive("votesByFormatByUsers.json")
+const checkTalkRatings = async (talkId) => {
+    const rawFileContent = await fs.readFile("votesByFormatByUsers.json");
+    const fileContent = JSON.parse(rawFileContent)
+
+    const ratings = fileContent.flatMap(user =>
+        user.formats.flatMap(format => {
+
+            const talkFound = Object.values(format)[0].find(talkWithRating => talkWithRating.includes(talkId))
+
+            return talkFound
+        }
+    ))
+        .filter(value => value !== undefined)
+        .map(value => Number.parseInt(value.split(' ')[0]))
+    const sum = ratings.reduce((acc, item) => {
+        return acc + item
+    }, 0)
+    console.log(ratings, sum / ratings.length)
+}
+
+// checkTalkRatings("Kwm73yhIAEwizxpwiBpw")
+// checkVoteCount("votesByFormatByUsers.json")
+// checkLoveAndFive("votesByFormatByUsers.json")
