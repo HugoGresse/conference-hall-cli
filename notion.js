@@ -30,6 +30,9 @@ const notionFormatToFlatObject = (pagesData) => {
                 case "date":
                     if(property.date) acc[key] = property.date.start
                     break
+                case "checkbox":
+                    acc[key] = property.checkbox
+                    break
                 default:
                     console.log("unknown", property)
                     break
@@ -120,6 +123,15 @@ const addNotionPage = async (dbId, data, keys) => {
     })
 }
 
+const getSocialHandle = (social) => {
+    if(!social) return null
+    if(social.includes("@") || !social.startsWith("http")) return social.replace('@', '')
+
+    return social.split('/').pop()
+}
+
+
+
 // CID = conference hall id
 const archiveOn = false
 const syncToNotion = async (speakerDBId, proposalsDBId, tracksDBId) => {
@@ -192,6 +204,95 @@ const syncToNotion = async (speakerDBId, proposalsDBId, tracksDBId) => {
     spinner.succeed("Updating notion talks")
 }
 
+const syncFromNotion = async (speakerDBId, proposalsDBId, tracksDBId) => {
+    let spinner = ora().start("Loading file")
+    const rawFileContent = await fs.readFile(fileName)
+    const fileContent = JSON.parse(rawFileContent)
+
+    const speakersById = fileContent.speakers.reduce((acc, speaker) => {
+        acc[speaker.uid] = speaker
+        return acc
+    }, {})
+    const proposalsById = fileContent.proposals.reduce((acc, proposal) => {
+        acc[proposal.id] = proposal
+        return acc
+    }, {})
+    spinner.text = 'Getting data from notion, speakers'
+    const nSpeakers = notionFormatToFlatObject(await getNotionPagesData(speakerDBId))
+    const nSpeakersById = nSpeakers.reduce((acc, speaker) => {
+        acc[speaker.id] = speaker
+        return acc
+    }, {})
+    spinner.text = 'Getting data from notion, talks'
+    const nTalks = notionFormatToFlatObject(await getNotionPagesData(proposalsDBId))
+
+    spinner.succeed("Getting data from notion")
+
+    // 1. Remove speaker on notion not present here
+    spinner = ora().start('Formatting output data')
+
+    const outputSpeakers = nSpeakers.reduce((acc, notionSpeaker) => {
+        const twitter = getSocialHandle(notionSpeaker.twitter)
+        const github = getSocialHandle(notionSpeaker.github)
+
+        const socials = []
+        if(twitter) {
+            socials.push({
+                name: 'Twitter',
+                icon: "twitter",
+                url: `https://twitter.com/${twitter}`
+            })
+        }
+        if(github) {
+            socials.push({
+                name: 'Github',
+                icon: "github",
+                url: `https://github.com/${github}`
+            })
+        }
+
+        acc[notionSpeaker.cid] = {
+            bio: notionSpeaker.bio,
+            company: notionSpeaker.company,
+            companyLogoUrl: "/images/logos/" + notionSpeaker.company?.toLowerCase().replace(/\s/g, '-') + ".png",
+            country: speakersById[notionSpeaker.cid]?.city,
+            name: notionSpeaker.name,
+            photoUrl: notionSpeaker.photoURL,
+            socials: socials,
+            shortBio: "",
+            title: "",
+        }
+
+        return acc
+    }, {})
+
+    const outputSessions = nTalks.reduce((acc, talk, index) => {
+        acc[index] = {
+            title: talk.title,
+            complexity: talk.level,
+            description: proposalsById[talk.cid]?.description,
+            language: "French",
+            tags: talk.categories ? [talk.categories] : [],
+            speakers: talk.speakers.map(speakerId => nSpeakersById[speakerId].cid),
+            presentation: null,
+            videoId: null,
+            image: talk.image || null,
+            hideInFeedback : talk.hideInFeedback,
+            hideTrackTitle: talk.hideTrackTitle,
+        }
+
+        return acc
+    }, {})
+
+    spinner.succeed("Formatting output data")
+
+    await fs.writeFile("hoverboardSpeakerSessionsSchedule.json", JSON.stringify({
+        speakers: outputSpeakers,
+        sessions: outputSessions,
+        schedule: {}
+    }, 0, 4))
+}
+
 const main = async () => {
     program.parse(process.argv)
 
@@ -199,7 +300,7 @@ const main = async () => {
     const proposalDatabaseId = "9201cbe052eb42cbbb9d20674ade9ece"
     const tracksDatabaseId = "1ee05d974cb047d7902f8818edea6188"
 
-    if (!program.syncToNotion) {
+    if (!program.syncToNotion && !program.syncFromNotion) {
         console.log("No export chosen")
         process.exit(1)
     }
@@ -207,11 +308,16 @@ const main = async () => {
     if (program.syncToNotion) {
         await syncToNotion(speakerDatabaseId, proposalDatabaseId, tracksDatabaseId)
     }
+
+    if(program.syncFromNotion) {
+        await syncFromNotion(speakerDatabaseId, proposalDatabaseId, tracksDatabaseId)
+    }
 }
 
 
 program
-    .option('--sync-to-notion', 'TODO')
+    .option('--sync-to-notion', 'from speakersAndProposals.json file, update the data on Notion.so and may delete unused speakers & talks')
+    .option('--sync-from-notion', 'from Notion.so, reconstruct the schedule and speakers for Hoverboard websites')
 
 
 main()
