@@ -206,8 +206,8 @@ const main = async () => {
         process.exit(1)
     }
 
-    if (!program.exportUserFormatsVotes && !program.exportSpeakers && !program.exportConfirmedTalksWithSpeakers) {
-        console.log("No export choosed")
+    if (!program.exportUserFormatsVotes && !program.exportSpeakers && !program.exportConfirmedTalks) {
+        console.log("No export chosen")
         process.exit(1)
     }
 
@@ -236,11 +236,13 @@ const main = async () => {
         spinner.succeed(`File saved to ./${fileName}`)
     }
 
-    if(program.exportConfirmedTalksWithSpeakers) {
+    if(program.exportConfirmedTalks) {
         const [speakers, proposals] = await exportSpeakersAndProposals(eventId, pageSize, "confirmed")
+        const event = await getEvent(eventId)
+        const categories = event.categories
         const spinner = ora("Saving file")
         const fileName = "speakersAndProposals.json"
-        await writeResult(fileName, JSON.stringify({speakers, proposals}, 0, 4))
+        await writeResult(fileName, JSON.stringify({categories, speakers, proposals}, 0, 4))
         spinner.succeed(`File saved to ./${fileName}`)
     }
 }
@@ -248,7 +250,7 @@ const main = async () => {
 program
     .option('--export-user-formats-votes', 'get number of votes by user by talk formats')
     .option('--export-speakers', 'export speakers email, in .csv')
-    .option('--export-confirmed-talks-with-speakers', 'export the confirmed talks and their speakers in .json')
+    .option('--export-confirmed-talks', 'export the confirmed talks, their speakers and their categories in .json')
     .option('--filter-talk-state <talkStatus>', 'the talk state to keep like accepted,confirmed,submitted')
     .option('-d, --debug', 'debug mode')
     .option('-s, --size <pageSize>', 'the number of proposal to fetch by page', 50)
