@@ -237,12 +237,13 @@ const main = async () => {
     }
 
     if(program.exportConfirmedTalks) {
-        const [speakers, proposals] = await exportSpeakersAndProposals(eventId, pageSize, "confirmed")
         const event = await getEvent(eventId)
         const categories = event.categories
+        const formats = event.formats
+        const [speakers, proposals] = await exportSpeakersAndProposals(eventId, pageSize, "confirmed")
         const spinner = ora("Saving file")
         const fileName = "speakersAndProposals.json"
-        await writeResult(fileName, JSON.stringify({categories, speakers, proposals}, 0, 4))
+        await writeResult(fileName, JSON.stringify({categories, formats, speakers, proposals}, 0, 4))
         spinner.succeed(`File saved to ./${fileName}`)
     }
 }

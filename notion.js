@@ -27,6 +27,12 @@ const notionFormatToFlatObject = (pagesData) => {
                 case "relation":
                     acc[key] = property.relation?.map(relation => relation.id)
                     break
+                case "date":
+                    if(property.date) acc[key] = property.date.start
+                    break
+                default:
+                    console.log("unknown", property)
+                    break
             }
             return acc
         }, {
@@ -35,7 +41,7 @@ const notionFormatToFlatObject = (pagesData) => {
     })
 }
 const SPEAKERS_KEYS = ['name', 'bio', 'photoURL', 'company', "phone", 'cid', 'twitter', 'github', 'linkedin', 'email']
-const PROPOSALS_KEYS = ['title', 'categories', "speakers", 'level', 'cid']
+const PROPOSALS_KEYS = ['title', 'categories', "speakers", 'level', "formats", "date", 'cid']
 const flatObjectToNotionFormat = (data, keysToUse) => {
     const keys = Object.keys(data)
     return {
@@ -57,6 +63,14 @@ const flatObjectToNotionFormat = (data, keysToUse) => {
                                 id: speakerId
                             }
                         })
+                    }
+                } else if (key === "date") {
+                    acc[key] = {
+                        type: "date",
+                        date: {
+                            start: data[key],
+                            end: data["dateEnd"],
+                        }
                     }
                 } else {
                     acc[key] = {
@@ -113,6 +127,14 @@ const syncToNotion = async (speakerDBId, proposalsDBId, tracksDBId) => {
     const rawFileContent = await fs.readFile(fileName)
     const fileContent = JSON.parse(rawFileContent)
 
+    const categoriesById = fileContent.categories.reduce((acc, category) => {
+        acc[category.id] = category.name
+        return acc
+    }, {})
+    const formatsById = fileContent.formats.reduce((acc, format) => {
+        acc[format.id] = format.name
+        return acc
+    }, {})
     const speakers = fileContent.speakers.map(speaker => {
         speaker.cid = speaker.uid
         speaker.name = speaker.displayName
@@ -134,7 +156,7 @@ const syncToNotion = async (speakerDBId, proposalsDBId, tracksDBId) => {
     // 1. Remove speaker on notion not present here
     spinner = ora().start('Updating notion speakers')
     if (archiveOn) {
-        const speakersToRemove = nSpeakers.filter(speaker => !speakerIds.includes(speaker.cid))
+        const speakersToRemove = nSpeakers.filter(speaker => !speakerIds.includes(speaker.cid) && !speaker.manual)
         await Promise.all(speakersToRemove.map(speaker => archiveNotionPage(speaker.id)))
     }
 
@@ -146,7 +168,7 @@ const syncToNotion = async (speakerDBId, proposalsDBId, tracksDBId) => {
     // 3. Remove talks on notion not present here
     spinner = ora().start('Updating notion talks')
     if (archiveOn) {
-        const talksToRemove = nProposals.filter(proposal => !proposalIds.includes(proposal.cid))
+        const talksToRemove = nProposals.filter(proposal => !proposalIds.includes(proposal.cid)  && !proposal.manual)
         await Promise.all(talksToRemove.map(proposal => archiveNotionPage(proposal.id)))
     }
 
@@ -159,6 +181,10 @@ const syncToNotion = async (speakerDBId, proposalsDBId, tracksDBId) => {
     const talksToAdd = proposals.filter(proposal => !nProposals.find(nProposal => nProposal.cid === proposal.id))
     const talksToAddWithSpeakers = talksToAdd.map(proposal => {
         proposal.speakers = Object.keys(proposal.speakers).map(speakerId => notionSpeakersByCID[speakerId].id)
+        proposal.categories = categoriesById[proposal.categories]
+        proposal.formats = formatsById[proposal.formats]
+        proposal.date = "2022-06-30T00:10:00+00:00"
+        proposal.dateEnd = "2022-06-30T00:11:00+00:00"
         return proposal
     })
     await Promise.all(talksToAddWithSpeakers.map(proposal => addNotionPage(proposalsDBId, proposal, PROPOSALS_KEYS)))
