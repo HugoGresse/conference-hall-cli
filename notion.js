@@ -134,7 +134,7 @@ const getSocialHandle = (social) => {
 
 // CID = conference hall id
 const archiveOn = false
-const syncToNotion = async (speakerDBId, proposalsDBId, tracksDBId) => {
+const syncToNotion = async (speakerDBId, proposalsDBId) => {
     let spinner = ora().start("Loading file")
     const rawFileContent = await fs.readFile(fileName)
     const fileContent = JSON.parse(rawFileContent)
@@ -204,7 +204,7 @@ const syncToNotion = async (speakerDBId, proposalsDBId, tracksDBId) => {
     spinner.succeed("Updating notion talks")
 }
 
-const syncFromNotion = async (speakerDBId, proposalsDBId, tracksDBId) => {
+const syncFromNotion = async (speakerDBId, proposalsDBId) => {
     let spinner = ora().start("Loading file")
     const rawFileContent = await fs.readFile(fileName)
     const fileContent = JSON.parse(rawFileContent)
@@ -298,7 +298,6 @@ const main = async () => {
 
     const speakerDatabaseId = "bf3bb15df392471293d9d293bde6cd34"
     const proposalDatabaseId = "9201cbe052eb42cbbb9d20674ade9ece"
-    const tracksDatabaseId = "1ee05d974cb047d7902f8818edea6188"
 
     if (!program.syncToNotion && !program.syncFromNotion) {
         console.log("No export chosen")
@@ -306,11 +305,11 @@ const main = async () => {
     }
 
     if (program.syncToNotion) {
-        await syncToNotion(speakerDatabaseId, proposalDatabaseId, tracksDatabaseId)
+        await syncToNotion(speakerDatabaseId, proposalDatabaseId)
     }
 
     if(program.syncFromNotion) {
-        await syncFromNotion(speakerDatabaseId, proposalDatabaseId, tracksDatabaseId)
+        await syncFromNotion(speakerDatabaseId, proposalDatabaseId)
     }
 }
 
