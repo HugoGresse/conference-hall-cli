@@ -254,20 +254,20 @@ const syncFromNotion = async (speakerDBId, proposalsDBId, tracksDBId) => {
         acc[notionSpeaker.cid] = {
             bio: notionSpeaker.bio,
             company: notionSpeaker.company,
-            companyLogoUrl: "/images/logos/" + notionSpeaker.company?.toLowerCase().replace(/\s/g, '-') + ".png",
+            companyLogoUrl: notionSpeaker.companyLogoUrl,
             country: speakersById[notionSpeaker.cid]?.city,
             name: notionSpeaker.name,
             photoUrl: notionSpeaker.photoURL,
             socials: socials,
-            shortBio: "",
-            title: "",
+            shortBio: notionSpeaker.shortBio,
+            title: notionSpeaker.title,
         }
 
         return acc
     }, {})
 
     const outputSessions = nTalks.reduce((acc, talk, index) => {
-        acc[index] = {
+        acc[talk.cid || talk.id] = {
             title: talk.title,
             complexity: talk.level,
             description: proposalsById[talk.cid]?.description,
