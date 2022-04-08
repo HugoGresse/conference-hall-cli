@@ -28,7 +28,7 @@ const notionFormatToFlatObject = (pagesData) => {
                     acc[key] = property.relation?.map(relation => relation.id)
                     break
                 case "date":
-                    if(property.date) acc[key] = property.date.start
+                    if (property.date) acc[key] = property.date.start
                     break
                 case "checkbox":
                     acc[key] = property.checkbox
@@ -124,16 +124,16 @@ const addNotionPage = async (dbId, data, keys) => {
 }
 
 const getSocialHandle = (social) => {
-    if(!social) return null
-    if(social.includes("@") || !social.startsWith("http")) return social.replace('@', '')
+    if (!social) return null
+    if (social.includes("@") || !social.startsWith("http")) return social.replace('@', '')
 
     return social.split('/').pop()
 }
 
 
-
 // CID = conference hall id
 const archiveOn = false
+const dryRun = false
 const syncToNotion = async (speakerDBId, proposalsDBId) => {
     let spinner = ora().start("Loading file")
     const rawFileContent = await fs.readFile(fileName)
@@ -169,19 +169,33 @@ const syncToNotion = async (speakerDBId, proposalsDBId) => {
     spinner = ora().start('Updating notion speakers')
     if (archiveOn) {
         const speakersToRemove = nSpeakers.filter(speaker => !speakerIds.includes(speaker.cid) && !speaker.manual)
-        await Promise.all(speakersToRemove.map(speaker => archiveNotionPage(speaker.id)))
+        if (dryRun) {
+            console.log("Speakers to remove: ", speakersToRemove.length)
+        } else {
+            await Promise.all(speakersToRemove.map(speaker => archiveNotionPage(speaker.id)))
+        }
     }
 
     // 2. Add speaker not present here
     const speakersToAdd = speakers.filter(speaker => !nSpeakers.find(nSpeaker => nSpeaker.cid === speaker.uid))
-    await Promise.all(speakersToAdd.map(speaker => addNotionPage(speakerDBId, speaker, SPEAKERS_KEYS)))
+    if (dryRun) {
+        console.log("Speakers to add: ", speakersToAdd.length)
+    } else {
+        await Promise.all(speakersToAdd.map(speaker => addNotionPage(speakerDBId, speaker, SPEAKERS_KEYS)))
+
+    }
     spinner.succeed("Updating notion speakers")
 
     // 3. Remove talks on notion not present here
     spinner = ora().start('Updating notion talks')
     if (archiveOn) {
-        const talksToRemove = nProposals.filter(proposal => !proposalIds.includes(proposal.cid)  && !proposal.manual)
-        await Promise.all(talksToRemove.map(proposal => archiveNotionPage(proposal.id)))
+        const talksToRemove = nProposals.filter(proposal => !proposalIds.includes(proposal.cid) && !proposal.manual)
+        if (dryRun) {
+            console.log("Talks to remove: ", talksToRemove.length)
+        } else {
+            await Promise.all(talksToRemove.map(proposal => archiveNotionPage(proposal.id)))
+
+        }
     }
 
     // 4. Add talks not present here
@@ -191,15 +205,19 @@ const syncToNotion = async (speakerDBId, proposalsDBId) => {
         return acc
     }, {})
     const talksToAdd = proposals.filter(proposal => !nProposals.find(nProposal => nProposal.cid === proposal.id))
-    const talksToAddWithSpeakers = talksToAdd.map(proposal => {
-        proposal.speakers = Object.keys(proposal.speakers).map(speakerId => notionSpeakersByCID[speakerId].id)
-        proposal.categories = categoriesById[proposal.categories]
-        proposal.formats = formatsById[proposal.formats]
-        proposal.date = "2022-06-30T00:10:00+00:00"
-        proposal.dateEnd = "2022-06-30T00:11:00+00:00"
-        return proposal
-    })
-    await Promise.all(talksToAddWithSpeakers.map(proposal => addNotionPage(proposalsDBId, proposal, PROPOSALS_KEYS)))
+    if(dryRun) {
+        console.log("Talks to add: ", talksToAdd.length)
+    } else {
+        const talksToAddWithSpeakers = talksToAdd.map(proposal => {
+            proposal.speakers = Object.keys(proposal.speakers).map(speakerId => notionSpeakersByCID[speakerId].id)
+            proposal.categories = categoriesById[proposal.categories]
+            proposal.formats = formatsById[proposal.formats]
+            proposal.date = "2022-06-30T00:10:00+00:00"
+            proposal.dateEnd = "2022-06-30T00:11:00+00:00"
+            return proposal
+        })
+        await Promise.all(talksToAddWithSpeakers.map(proposal => addNotionPage(proposalsDBId, proposal, PROPOSALS_KEYS)))
+    }
 
     spinner.succeed("Updating notion talks")
 }
@@ -236,14 +254,14 @@ const syncFromNotion = async (speakerDBId, proposalsDBId) => {
         const github = getSocialHandle(notionSpeaker.github)
 
         const socials = []
-        if(twitter) {
+        if (twitter) {
             socials.push({
                 name: 'Twitter',
                 icon: "twitter",
                 url: `https://twitter.com/${twitter}`
             })
         }
-        if(github) {
+        if (github) {
             socials.push({
                 name: 'Github',
                 icon: "github",
@@ -277,7 +295,7 @@ const syncFromNotion = async (speakerDBId, proposalsDBId) => {
             presentation: null,
             videoId: null,
             image: talk.image || null,
-            hideInFeedback : talk.hideInFeedback,
+            hideInFeedback: talk.hideInFeedback,
             hideTrackTitle: talk.hideTrackTitle,
         }
 
@@ -308,7 +326,7 @@ const main = async () => {
         await syncToNotion(speakerDatabaseId, proposalDatabaseId)
     }
 
-    if(program.syncFromNotion) {
+    if (program.syncFromNotion) {
         await syncFromNotion(speakerDatabaseId, proposalDatabaseId)
     }
 }
