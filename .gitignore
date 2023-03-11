@@ -36,3 +36,4 @@ yarn-error.log*
 /speakers.csv
 /speakersAndProposals.json
 /hoverboardSpeakerSessionsSchedule.json
+/proposalsFull.json

@@ -1,4 +1,4 @@
-const {program} = require('commander')
+const { program } = require('commander')
 const FireStoreParser = require('firestore-parser')
 const fetch = require('node-fetch')
 const ora = require('ora')
@@ -11,7 +11,7 @@ let userIdToken = undefined
 
 const fetchFirestore = (path, pageSize = 1, nextPageToken) => {
     let url = `https://firestore.googleapis.com/v1beta1/projects/${projectID}/databases/(default)/documents/${path}?key=${key}&pageSize=${pageSize}`
-    if(nextPageToken) {
+    if (nextPageToken) {
         url += `&pageToken=${nextPageToken}`
     }
     return fetch(url,
@@ -43,14 +43,14 @@ const getEvent = async (eventId) => {
 }
 
 const getUsers = async (organizationId) => {
-    const response = await  fetchDocument(`organizations/${organizationId}/`)
+    const response = await fetchDocument(`organizations/${organizationId}/`)
 
     const organization = response
     const userIds = Object.keys(organization.members)
 
     const users = {}
 
-    for(const userId of userIds) {
+    for (const userId of userIds) {
         const user = await fetchDocument(`users/${userId}`)
         users[userId] = user
     }
@@ -59,25 +59,42 @@ const getUsers = async (organizationId) => {
 }
 
 const getProposals = async (eventId, pageSize) => {
-    let response = await  fetchFirestore(`events/${eventId}/proposals/`, pageSize)
+    let response = await fetchFirestore(`events/${eventId}/proposals/`, pageSize)
 
     let proposals = response.documents.map(doc => doc.fields)
 
     do {
-        response = await  fetchFirestore(`events/${eventId}/proposals/`, pageSize, response.nextPageToken)
+        response = await fetchFirestore(`events/${eventId}/proposals/`, pageSize, response.nextPageToken)
         proposals = proposals.concat(response.documents.map(doc => doc.fields))
 
-        if(program.debug) console.log(`Proposal count: ${proposals.length}`)
+        if (program.debug) console.log(`Proposal count: ${proposals.length}`)
     } while (response.nextPageToken)
 
     return proposals
+}
+
+const getSurveys = async (eventId, speakerIds) => {
+    const spinner = ora().start("Loading surveys")
+    const surveys = []
+
+    for (const userId of speakerIds) {
+        try {
+            surveys.push(await fetchDocument(`events/${eventId}/surveys/${userId}`))
+        } catch (error) {
+            // Ignored
+        }
+    }
+
+    spinner.succeed()
+
+    return surveys
 }
 
 const getSpeakers = async (proposals) => {
     const speakerIds = proposals.flatMap(prop => Object.keys(prop.speakers))
     const users = []
 
-    for(const userId of speakerIds) {
+    for (const userId of speakerIds) {
         users.push(await fetchDocument(`users/${userId}`))
     }
 
@@ -87,12 +104,12 @@ const getSpeakers = async (proposals) => {
 const hydrateRatingsOnProposals = async (eventId, proposals) => {
     const updatedProposals = JSON.parse(JSON.stringify(proposals))
 
-    for(const proposal of updatedProposals) {
-        if(program.debug) console.log(`Fetch proposal on: ${proposal.id}`)
+    for (const proposal of updatedProposals) {
+        if (program.debug) console.log(`Fetch proposal on: ${proposal.id}`)
 
-        const response = await  fetchFirestore(`events/${eventId}/proposals/${proposal.id}/ratings`, 100)
+        const response = await fetchFirestore(`events/${eventId}/proposals/${proposal.id}/ratings`, 100)
 
-        if(response.nextPageToken) {
+        if (response.nextPageToken) {
             console.log(">> Not all ratings fetched /!\\")
         }
 
@@ -103,7 +120,7 @@ const hydrateRatingsOnProposals = async (eventId, proposals) => {
 }
 
 const calculateVoteByCategoriesByUser = (proposals, users, categories) => {
-    const categoriesById = categories.reduce((acc, cat ) => {
+    const categoriesById = categories.reduce((acc, cat) => {
         acc[cat.id] = cat.name
 
         return acc
@@ -111,7 +128,7 @@ const calculateVoteByCategoriesByUser = (proposals, users, categories) => {
 
     const ratingsByCategorie = proposals.reduce((acc, prop) => {
         const key = categoriesById[prop.categories]
-        if(!acc[key]) {
+        if (!acc[key]) {
             acc[key] = []
         }
 
@@ -130,7 +147,7 @@ const calculateVoteByCategoriesByUser = (proposals, users, categories) => {
                 const ratings = ratingsByCategorie[categorieName]
                 return {
                     [categorieName]: ratings.filter(rating => rating.uid === userId).map(rating => {
-                        if(rating.feeling === "neutral") {
+                        if (rating.feeling === "neutral") {
                             return `${rating.rating} (${rating.proposalId})`
                         }
                         return `${rating.feeling} (${rating.proposalId})`
@@ -159,6 +176,8 @@ const getVotesByFormatByUser = async (eventId, pageSize) => {
 
     spinner.succeed("Loading completed!")
 
+    await writeResult("proposalsFull.json", JSON.stringify({ categories, users, updatedProposals }, 0, 4))
+
     console.log('Merging datas...')
     return calculateVoteByCategoriesByUser(updatedProposals, users, categories)
 }
@@ -168,7 +187,7 @@ const exportSpeakersAndProposals = async (eventId, pageSize, filterStatus) => {
     const proposals = await getProposals(eventId, pageSize)
 
     let filteredProposal = proposals
-    if(filterStatus) {
+    if (filterStatus) {
         const filters = filterStatus.split(',')
         filteredProposal = proposals.filter(prop => filters.includes(prop.state))
         console.log(` -- ${filteredProposal.length} filtered proposals out of ${proposals.length}`)
@@ -184,14 +203,40 @@ const exportSpeakersAndProposals = async (eventId, pageSize, filterStatus) => {
     return [speakers, filteredProposal]
 }
 
-const exportSpeakersEmails = async (eventId, pageSize, filterStatus) => {
+const exportSpeakersEmailsAndSurveys = async (eventId, pageSize, filterStatus) => {
     const [speakers] = await exportSpeakersAndProposals(eventId, pageSize, filterStatus)
+    const surveys = await getSurveys(eventId, speakers.map(speaker => speaker.uid))
 
-    return speakers.map(speaker => speaker.email).join(',')
+    const acceptedConfirmedSurveys = []
+
+    for (const speaker of speakers) {
+        const surveyIndex = surveys.findIndex(survey => survey.uid === speaker.uid)
+        if (surveyIndex && surveys[surveyIndex]) {
+            acceptedConfirmedSurveys.push({
+                ...surveys[surveyIndex],
+                speaker: speaker.displayName,
+            })
+        } else {
+            console.log(`No survey found for speaker ${speaker.displayName} (${speaker.uid})`)
+        }
+    }
+    const surveyKeys = ["accomodation", "tshirt", "transports", "uid", "gender", "info", "speaker"]
+
+    return [
+        speakers.map(speaker => speaker.email).join(','),
+        surveyKeys.join(";") + ";\n" + acceptedConfirmedSurveys.map(survey => {
+            return surveyKeys.map(key => {
+                if(key === "transports") {
+                    return survey[key] ? Object.keys(survey[key]) + ", "+Object.values(survey[key]).join(',') : ''
+                }
+                return survey[key] ? survey[key]: ""
+            }).join(";")
+        }).join('\n')
+    ]
 }
 
 const writeResult = (fileName, data) => {
-    return fs.writeFile(fileName,data)
+    return fs.writeFile(fileName, data)
 }
 
 const main = async () => {
@@ -220,7 +265,7 @@ const main = async () => {
     const pageSize = program.size
     userIdToken = program.token
 
-    if(program.exportUserFormatsVotes) {
+    if (program.exportUserFormatsVotes) {
         const result = await getVotesByFormatByUser(eventId, pageSize)
         const spinner = ora("Saving file")
         const fileName = "votesByFormatByUsers.json"
@@ -228,22 +273,24 @@ const main = async () => {
         spinner.succeed(`File saved to ./${fileName}`)
     }
 
-    if(program.exportSpeakers) {
-        const resultSpeakerEmails = await exportSpeakersEmails(eventId, pageSize, program.filterTalkState)
+    if (program.exportSpeakers) {
+        const [resultSpeakerEmails, surveys] = await exportSpeakersEmailsAndSurveys(eventId, pageSize, "confirmed")
         const spinner = ora("Saving file")
         const fileName = "speakers.csv"
+        const surveysFileName = "surveys.csv"
         await writeResult(fileName, resultSpeakerEmails)
-        spinner.succeed(`File saved to ./${fileName}`)
+        await writeResult(surveysFileName, surveys)
+        spinner.succeed(`File saved to ./${fileName} and ./${surveysFileName}`)
     }
 
-    if(program.exportConfirmedTalks) {
+    if (program.exportConfirmedTalks) {
         const event = await getEvent(eventId)
         const categories = event.categories
         const formats = event.formats
-        const [speakers, proposals] = await exportSpeakersAndProposals(eventId, pageSize, "confirmed")
+        const [speakers, proposals] = await exportSpeakersAndProposals(eventId, pageSize, "submitted")
         const spinner = ora("Saving file")
         const fileName = "speakersAndProposals.json"
-        await writeResult(fileName, JSON.stringify({categories, formats, speakers, proposals}, 0, 4))
+        await writeResult(fileName, JSON.stringify({ categories, formats, speakers, proposals }, 0, 4))
         spinner.succeed(`File saved to ./${fileName}`)
     }
 }

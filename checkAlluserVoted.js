@@ -83,4 +83,4 @@ const checkTalkRatings = async (talkId) => {
 
 // checkTalkRatings("Kwm73yhIAEwizxpwiBpw")
 // checkVoteCount("votesByFormatByUsers.json")
-// checkLoveAndFive("votesByFormatByUsers.json")
+checkLoveAndFive("votesByFormatByUsers.json")
