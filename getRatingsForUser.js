@@ -2,7 +2,7 @@ const fs = require('fs').promises
 
 
 
-const getRatingForUser = async (fileName, userId, ratingValue) => {
+const getRatingForUser = async (fileName, userId, ratingValue, feeling = null) => {
     const rawFileContent = await fs.readFile(fileName);
     const fileContent = JSON.parse(rawFileContent)
 
@@ -11,7 +11,7 @@ const getRatingForUser = async (fileName, userId, ratingValue) => {
     console.log("Total proposals count: ", proposals.length)
 
     const filteredProposals = proposals.filter(prop => {
-        if(prop.ratings.find(rating => (rating.uid === userId) && (rating.rating === ratingValue))) {
+        if(prop.ratings.find(rating => (rating.uid === userId) && (rating.rating === ratingValue) && (feeling && rating.feeling === feeling))) {
             return true
         }
         return false
@@ -25,4 +25,4 @@ const getRatingForUser = async (fileName, userId, ratingValue) => {
 }
 
 
-getRatingForUser("proposalsFull.json", "", 4)
+getRatingForUser("proposalsFull.json", "", "5", "love")
