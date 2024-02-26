@@ -58,7 +58,52 @@ const checkLoveAndFive = async (fileName) => {
         }
     })
 
-    fs.writeFile("votesByUserByFormatByType.json", JSON.stringify(results))
+
+    /**
+     * [
+     *   {
+     *     "name": "Arlemi",
+     *     "ratingByFormats": [
+     *       {
+     *         "Conception": {}
+     *       },
+     *       {
+     *         "Architecture & Sécurité": {}
+     *       },
+     *       {
+     *         "Atypique": {}
+     *       },
+     *       {
+     *         "Cloud & DevOps": {}
+     *       },
+     *       {
+     *         "Frontend": {}
+     *       },
+     *       {
+     *         "Backend": {}
+     *       },
+     *       {
+     *         "IA & Data": {}
+     *       }
+     *     ]
+     *   },
+     *   {
+     */
+
+    const resultsWithOnlyVoters = results.map(user => {
+        const isEmptyVotes = user.ratingByFormats.every(format => {
+            const key = Object.keys(format)[0]
+
+            return Object.keys(format[key]).length === 0
+        })
+
+        return {
+            name: user.name,
+            ratingByFormats: isEmptyVotes ? [] : user.ratingByFormats
+        }
+    })
+
+    fs.writeFile("votesByUserByFormatByType.json", JSON.stringify(resultsWithOnlyVoters, null, 4))
 }
 
 const checkTalkRatings = async (talkId) => {
@@ -82,5 +127,5 @@ const checkTalkRatings = async (talkId) => {
 }
 
 // checkTalkRatings("Kwm73yhIAEwizxpwiBpw")
-// checkVoteCount("votesByFormatByUsers.json")
+checkVoteCount("votesByFormatByUsers.json")
 checkLoveAndFive("votesByFormatByUsers.json")

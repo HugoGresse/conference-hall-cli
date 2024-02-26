@@ -113,7 +113,11 @@ const hydrateRatingsOnProposals = async (eventId, proposals) => {
             console.log(">> Not all ratings fetched /!\\")
         }
 
-        proposal.ratings = response.documents.map(doc => doc.fields)
+        if(!response.documents) {
+            console.log('>> No Documents', response)
+        }
+
+        proposal.ratings = (response.documents || []).map(doc => doc.fields)
     }
 
     return updatedProposals
